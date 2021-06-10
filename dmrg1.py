@@ -110,19 +110,27 @@ class DMRG1:
         
 L = 128
 h = 0
-delta = -1
 chim, chi = 70, 40 
 
 A = MPS.MPS(L, chim, 2)
-H = MPO.XXZMPO(L, delta, h)
-
-alg = DMRG1(A,H)
-alg.initialize(chi)
-
-for n in range(10):
-    alg.right_sweep()
-    alg.left_sweep()
-print(alg.E/alg.L)
+alg = DMRG1(A,[])
 
 Mz = MPO.getMzMPO(L)
-print(Mz.contractMPOMPS(A)/A.L)
+SMz = MPO.getStagMzMPO(L)
+
+delta_space = np.linspace(-1.5,2.5,16)
+
+energy = np.zeros_like(delta_space)
+mz     = np.zeros_like(delta_space)
+smz    = np.zeros_like(delta_space)
+
+for jd, delta in enumerate(delta_space):
+    H = MPO.XXZMPO(L, delta, h)
+    alg.MPO = H
+    alg.initialize(chi)
+    for n in range(10):
+        alg.right_sweep()
+        alg.left_sweep()
+    energy[jd] = alg.E/alg.L
+    smz[jd]    = SMz.contractMPOMPS(alg.MPS).real/alg.L
+    mz[jd]     = Mz.contractMPOMPS(alg.MPS).real/alg.L
