@@ -121,16 +121,39 @@ def getMxMPO(L):
 
 def getStagMzMPO(L):
     sMzMPO = MPO(L,2)
-    mz  = np.zeros((2,2,2,2)); mzl = np.zeros((1,2,2,2)); mzr = np.zeros((2,1,2,2))
+    mzl = np.zeros((1,2,2,2)); mzr = np.zeros((2,1,2,2))
     sigma_z  = np.array([[1, 0], [0,-1]]);  Id  = np.array([[1, 0], [0, 1]])
     # Boundary
-    mzr[0,0,:,:] = Id; mzr[1,0,:,:] = sigma_z**(L-1)
+    mzr[0,0,:,:] = Id; 
+    mzr[1,0,:,:] = sigma_z*(-1)**(L-1)
     mzl[0,0,:,:] = sigma_z; mzl[0,1,:,:] = Id    
     # Set the MPO
-    sMzMPO.W[0] = mzl; sMzMPO.W[L-1] = mzr
+    sMzMPO.W[0] = mzl; 
+    sMzMPO.W[L-1] = mzr
     for i in range(1,L-1):
         # Bulk
-        mz[0,0,:,:] = Id; mz[1,0,:,:] = sigma_z*(-1)**i
+        mz  = np.zeros((2,2,2,2));
+        mz[0,0,:,:] = Id; 
+        mz[1,0,:,:] = sigma_z*(-1)**i
         mz[1,1,:,:] = Id
         sMzMPO.W[i] = mz
     return sMzMPO
+
+def ComputeCorrFunction(MPS,i,j,Opi,Opj):   
+    shpMi = MPS.M[i].shape
+    shpMj = MPS.M[j].shape
+    L = np.zeros((shpMi[0],1,shpMi[0]))
+    Rtemp = np.zeros((shpMj[2],1,shpMj[2]))
+    
+    L[:,0,:] = np.eye(shpMi[0])
+    Rtemp[:,0,:] = np.eye(shpMj[2])
+    
+    Rtemp = contract.contract_right(MPS.M[j],Opj,MPS.M[j].conj(),Rtemp)
+    for k in range(j-1, i, -1):
+           Rtemp = contract.contract_right(MPS.M[k], np.eye(MPS.d).reshape(1,1,2,2), MPS.M[k].conj(), Rtemp)
+    R = contract.contract_right(MPS.M[i], Opi, MPS.M[i].conj(), Rtemp)
+    return ncon([L,R],[[1,2,3],[1,2,3]])
+
+    
+    
+    

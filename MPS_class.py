@@ -43,6 +43,21 @@ class MPS:
             U, S, V = LA.svd(M.reshape(shpM[0]*shpM[1], shpM[2]), full_matrices=False)
             self.M[i] =  U.reshape(shpM[0], shpM[1], S.size)
             self.M[i+1] = ncon([np.diag(S)@V, self.M[i+1]],[[-1,1],[1,-2,-3]])
+   
+    def mix_normalize(self, j):
+        for i in range(0, j):
+            M = self.M[i]
+            shpM = M.shape
+            U, S, V = LA.svd(M.reshape(shpM[0]*shpM[1], shpM[2]), full_matrices=False)
+            self.M[i] =  U.reshape(shpM[0], shpM[1], S.size)
+            self.M[i+1] = ncon([np.diag(S)@V, self.M[i+1]],[[-1,1],[1,-2,-3]])            
+        for i in range(self.L-1,j,-1):
+            M = self.M[i]
+            shpM = M.shape
+            U, S, V = LA.svd(M.reshape(shpM[0], shpM[1]*shpM[2]), full_matrices=False)
+            self.M[i] = V.reshape(S.size, shpM[1], shpM[2])
+            self.M[i-1] = ncon([self.M[i-1],U*S],[[-1,-2,1],[1,-3]])
+    
     
     def check_normalization(self, which='R'):
         if which == 'R':

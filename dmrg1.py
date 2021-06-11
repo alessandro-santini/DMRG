@@ -50,13 +50,13 @@ def local_minimization(M,L,H,R,Lsteps=10):
         return psi, eig[0]
 
 class DMRG1:
-    def __init__(self, MPS, MPO):
-        self.MPS = MPS
-        self.MPO  = MPO
+    def __init__(self, H, chim):
+        self.MPS = MPS.MPS(H.L, chim, H.d)
+        self.MPO  = H
         # check H.L == MPS.L
         self.L = self.MPS.L
         self.E = 0.
-                
+        
     def initialize(self,chi):
         # Generate a randomMPS and put it in right
         # canonical form
@@ -74,6 +74,16 @@ class DMRG1:
         for j in range(L-1,0,-1):
             self.RT[j] = contract.contract_right(self.MPS.M[j], self.MPO.W[j], self.MPS.M[j].conj(), self.RT[j+1])
 
+    def check_convergence(self):
+        self.H2 = MPO.MPO(self.MPO.L,self.MPO.d)
+        for x in range(self.L):
+            shpW = self.MPO.W[x].shape
+            self.H2.W[x] = ncon([self.MPO.W[x],self.MPO.W[x]],[[-1,-3,1,-6],[-2,-4,-5,1]])
+            self.H2.W[x] = self.H2.W[x].reshape(shpW[0]*shpW[0],shpW[1]*shpW[1],shpW[2],shpW[3])
+        E2 = self.H2.contractMPOMPS(self.MPS)
+        E  = self.MPO.contractMPOMPS(self.MPS)
+        return (E2 - E**2)/self.L
+
     def right_sweep(self):
         for i in range(self.L):
             M = self.MPS.M[i]
@@ -89,8 +99,8 @@ class DMRG1:
             if i != self.L-1:
                 SV = (np.diag(S)@V)
                 self.MPS.M[i+1] = ncon([SV, self.MPS.M[i+1]],[[-1,1],[1,-2,-3]])
-            self.E = e
-             
+            self.E = e            
+            
     def left_sweep(self):
         for i in range(self.L-1,-1,-1):
             M = self.MPS.M[i]
@@ -106,31 +116,56 @@ class DMRG1:
                 US = U@np.diag(S)
                 self.MPS.M[i-1] = ncon([self.MPS.M[i-1],US],[[-1,-2,1],[1,-3]])
             self.E = e
-        return  
+        return    
         
 L = 128
-h = 0
-chim, chi = 70, 40 
+delta_space = np.linspace(-0.9,2.,4)
+chim, chi = 170, 200 
 
-A = MPS.MPS(L, chim, 2)
-alg = DMRG1(A,[])
-
-Mz = MPO.getMzMPO(L)
+Mz  = MPO.getMzMPO(L)
+Mx  = MPO.getMxMPO(L)
 SMz = MPO.getStagMzMPO(L)
+        
+mz  = np.zeros_like(delta_space)
+mx  = np.zeros_like(delta_space)
+smz = np.zeros_like(delta_space)
 
-delta_space = np.linspace(-1.5,2.5,16)
+H = MPO.XXZMPO(L, -1, 0.)
+alg = DMRG1(H, chim)
+alg.initialize(chi)
 
-energy = np.zeros_like(delta_space)
-mz     = np.zeros_like(delta_space)
-smz    = np.zeros_like(delta_space)
+for i in range(40):
+    alg.right_sweep()
+    alg.left_sweep()
+    
+sigma_z = np.array([[1,0],[0,-1]])
+sigma_z = sigma_z.reshape(1,1,2,2)
+Cij = np.zeros(64)
+alg.MPS.mix_normalize(i)
 
-for jd, delta in enumerate(delta_space):
-    H = MPO.XXZMPO(L, delta, h)
-    alg.MPO = H
+for k,j in enumerate(range(33,97)):
+    Cij[k] = MPO.ComputeCorrFunction(alg.MPS, 32,j,sigma_z,sigma_z )
+
+#%%
+for jd,delta in enumerate(delta_space):
+    H = MPO.XXZMPO(L, delta, 0.)
+    alg = DMRG1(H, chim)
     alg.initialize(chi)
-    for n in range(10):
+    for i in range(4):
         alg.right_sweep()
         alg.left_sweep()
-    energy[jd] = alg.E/alg.L
-    smz[jd]    = SMz.contractMPOMPS(alg.MPS).real/alg.L
-    mz[jd]     = Mz.contractMPOMPS(alg.MPS).real/alg.L
+    mz[jd] = Mz.contractMPOMPS(alg.MPS).real/alg.L
+    mx[jd] = Mx.contractMPOMPS(alg.MPS).real/alg.L
+    smz[jd] = SMz.contractMPOMPS(alg.MPS).real/alg.L 
+    #print(alg.check_convergence())
+#%%
+plt.plot(delta_space,np.abs(mz),label=r'$m_z$')
+#plt.plot(delta_space,mx,label=r'$m_x$')
+plt.plot(delta_space,np.abs(smz),label=r'$m_z^\mathrm{stag}$')
+
+plt.tick_params(axis='both',which='major',labelsize=16)
+
+plt.xlabel("$h$",fontsize=22)
+plt.legend(fontsize=20)
+
+plt.tight_layout()
