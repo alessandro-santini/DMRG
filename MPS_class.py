@@ -16,7 +16,9 @@ class MPS:
         self.chim = chim
         self.d = d
         self.M = [0 for x in range(L)]
-        self.Sab = np.zeros(self.L-1)
+        # Singular-Values
+        self.Svr = [0 for x in range(L+1)]
+        self.Svr[0] = np.array([1])
         
     def initializeMPS(self, chi):
         """Initialize a random MPS with bond dimension chi
@@ -33,6 +35,21 @@ class MPS:
             M = self.M[i]
             shpM = M.shape
             U, S, V = LA.svd(M.reshape(shpM[0], shpM[1]*shpM[2]), full_matrices=False)
+            S /= LA.norm(S)
+            self.M[i] = V.reshape(S.size, shpM[1], shpM[2])
+            self.M[i-1] = ncon([self.M[i-1],U*S],[[-1,-2,1],[1,-3]])
+            self.Svr[i+1] = S
+            
+    def right_normalize_and_truncate(self,chi):
+        for i in range(self.L-1,0,-1):
+            M = self.M[i]
+            shpM = M.shape
+            U, S, V = LA.svd(M.reshape(shpM[0], shpM[1]*shpM[2]), full_matrices=False)
+            if S.size>chi:
+                U = U[:,:chi]
+                V = V[:chi,:]
+                S = S[:chi]
+            S /= LA.norm(S)
             self.M[i] = V.reshape(S.size, shpM[1], shpM[2])
             self.M[i-1] = ncon([self.M[i-1],U*S],[[-1,-2,1],[1,-3]])
     
@@ -41,20 +58,23 @@ class MPS:
             M = self.M[i]
             shpM = M.shape
             U, S, V = LA.svd(M.reshape(shpM[0]*shpM[1], shpM[2]), full_matrices=False)
+            S /= LA.norm(S)
             self.M[i] =  U.reshape(shpM[0], shpM[1], S.size)
             self.M[i+1] = ncon([np.diag(S)@V, self.M[i+1]],[[-1,1],[1,-2,-3]])
-   
+            
     def mix_normalize(self, j):
         for i in range(0, j):
             M = self.M[i]
             shpM = M.shape
             U, S, V = LA.svd(M.reshape(shpM[0]*shpM[1], shpM[2]), full_matrices=False)
+            S /= LA.norm(S)
             self.M[i] =  U.reshape(shpM[0], shpM[1], S.size)
             self.M[i+1] = ncon([np.diag(S)@V, self.M[i+1]],[[-1,1],[1,-2,-3]])            
         for i in range(self.L-1,j,-1):
             M = self.M[i]
             shpM = M.shape
             U, S, V = LA.svd(M.reshape(shpM[0], shpM[1]*shpM[2]), full_matrices=False)
+            S /= LA.norm(S)
             self.M[i] = V.reshape(S.size, shpM[1], shpM[2])
             self.M[i-1] = ncon([self.M[i-1],U*S],[[-1,-2,1],[1,-3]])
     
@@ -68,3 +88,18 @@ class MPS:
             for i in range(self.L):
                 X = [self.M[i][:,j,:].T@self.M[i][:,j,:] for j in range(self.d)]
                 print('site',i,np.allclose(sum(X),np.eye(self.M[i].shape[2])))
+    
+    def compute_EntEntropy(self):
+        Sent = np.zeros(self.L)
+        Mlist = self.M.copy()
+        
+        for i in range(0, self.L):
+            M = Mlist[i]
+            shpM = M.shape
+            U, S, V = LA.svd(M.reshape(shpM[0]*shpM[1], shpM[2]), full_matrices=False)
+            S /= LA.norm(S)
+            Mlist[i] =  U.reshape(shpM[0], shpM[1], S.size)
+            if i!= self.L-1:
+                Mlist[i+1] = ncon([np.diag(S)@V, Mlist[i+1]],[[-1,1],[1,-2,-3]])
+            Sent[i] = (-S*np.log(S)).sum()
+        return Sent

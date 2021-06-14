@@ -2,6 +2,8 @@ import numpy as np
 import numpy.linalg as LA
 from ncon import ncon
 import contraction_utilities as contract
+from scipy.linalg import expm
+
 
 class MPO:
     def __init__(self,L,d):
@@ -154,6 +156,5 @@ def ComputeCorrFunction(MPS,i,j,Opi,Opj):
     R = contract.contract_right(MPS.M[i], Opi, MPS.M[i].conj(), Rtemp)
     return ncon([L,R],[[1,2,3],[1,2,3]])
 
-    
-    
-    
+
+        

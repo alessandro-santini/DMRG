@@ -48,7 +48,8 @@ def local_minimization(M,L,H,R,Lsteps=10):
         psi = V@w[:,0]
         return psi, eig[0]
 
-class DMRG1:
+
+class DMRG2:
     def __init__(self, H):
         chim = 200
         self.MPS = MPS.MPS(H.L, chim, H.d)
@@ -83,37 +84,63 @@ class DMRG1:
         E2 = self.H2.contractMPOMPS(self.MPS)
         E  = self.MPO.contractMPOMPS(self.MPS)
         return (E2 - E**2)
-
-    def right_sweep(self):
-        for i in range(self.L):
-            M = self.MPS.M[i]
-            shpM = M.shape
-            psi, e = local_minimization(M, self.LT[i-1], self.MPO.W[i], self.RT[i+1])
+    
+    def right_sweep(self, chi):
+        for i in range(self.L-1):
+            shpMi = self.MPS.M[i].shape
+            shpMj = self.MPS.M[i+1].shape
+            Mij = ncon([self.MPS.M[i],self.MPS.M[i+1]],[[-1,-2,1],[1,-3,-4]])
+            Mij = Mij.reshape(shpMi[0],shpMi[1]*shpMj[1],shpMj[2])
             
-            U,S,V = LA.svd(psi.reshape(shpM[0]*shpM[1],shpM[2]),full_matrices=False)
+            shpHi = self.MPO.W[i].shape
+            shpHj = self.MPO.W[i+1].shape
+            
+            Hij = ncon([self.MPO.W[i],self.MPO.W[i+1]],[[-1,1,-3,-5],[1,-2,-4,-6]])
+            Hij = Hij.reshape(shpHi[0],shpHj[1],shpHi[2]*shpHj[2],shpHi[3]*shpHj[3])
+            
+            psi, e = local_minimization(Mij, self.LT[i-1], Hij, self.RT[i+2])
+            
+            U,S,V = LA.svd(psi.reshape(shpMi[0]*shpMi[1],shpMj[1]*shpMj[2]),full_matrices=False)
+            
+            # Truncation
+            if S.size > chi:
+                U = U[:,:chi]
+                S = S[:chi]
+                V = V[:chi,:]
             S /= LA.norm(S)
-            A = U.reshape(shpM[0],shpM[1], S.size)
+            
+            A = U.reshape(shpMi[0],shpMi[1],S.size)
             self.LT[i]  = contract.contract_left(A, self.MPO.W[i], A.conj(), self.LT[i-1])
             self.MPS.M[i] = A
-                        
-            if i != self.L-1:
-                SV = (np.diag(S)@V)
-                self.MPS.M[i+1] = ncon([SV, self.MPS.M[i+1]],[[-1,1],[1,-2,-3]])
+            self.MPS.M[i+1] = (np.diag(S)@V).reshape(S.size,shpMj[1],shpMj[2])
             self.E = e            
+    
+    def left_sweep(self, chi):
+        for i in range(self.L-1,1,-1):
+            shpMi = self.MPS.M[i-1].shape
+            shpMj = self.MPS.M[i].shape
+            Mij = ncon([self.MPS.M[i-1],self.MPS.M[i]],[[-1,-2,1],[1,-3,-4]])
+            Mij = Mij.reshape(shpMi[0],shpMi[1]*shpMj[1],shpMj[2])
             
-    def left_sweep(self):
-        for i in range(self.L-1,-1,-1):
-            M = self.MPS.M[i]
-            shpM = M.shape
-            psi, e = local_minimization(M, self.LT[i-1], self.MPO.W[i], self.RT[i+1])
-            U,S,V = LA.svd(psi.reshape(shpM[0],shpM[1]*shpM[2]),full_matrices=False)
+            shpHi = self.MPO.W[i-1].shape
+            shpHj = self.MPO.W[i].shape
+            
+            Hij = ncon([self.MPO.W[i-1],self.MPO.W[i]],[[-1,1,-3,-5],[1,-2,-4,-6]])
+            Hij = Hij.reshape(shpHi[0],shpHj[1],shpHi[2]*shpHj[2],shpHi[3]*shpHj[3])
+            
+            psi, e = local_minimization(Mij, self.LT[i-2], Hij, self.RT[i+1])
+            
+            U,S,V = LA.svd(psi.reshape(shpMi[0]*shpMi[1],shpMj[1]*shpMj[2]),full_matrices=False)
+            
+            # Truncation
+            if S.size > chi:
+                U = U[:,:chi]
+                S = S[:chi]
+                V = V[:chi,:]
             S /= LA.norm(S)
-            B = V.reshape(S.size,shpM[1],shpM[2])
+            self.MPS.Svr[i+1] = S
+            B = V.reshape(S.size,shpMj[1],shpMj[2])
             self.RT[i]  = contract.contract_right(B, self.MPO.W[i], B.conj(), self.RT[i+1])
             self.MPS.M[i] = B
-            
-            self.MPS.Svr[i+1] = S
-            if i != 0:
-                US = U@np.diag(S)
-                self.MPS.M[i-1] = ncon([self.MPS.M[i-1],US],[[-1,-2,1],[1,-3]])
+            self.MPS.M[i-1] = (U@np.diag(S)).reshape(shpMi[0],shpMi[1],S.size)
             self.E = e
