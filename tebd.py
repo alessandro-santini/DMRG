@@ -14,10 +14,8 @@ import dmrg1
 class TEBD():
     def __init__(self, MPS_):
         self.MPS = MPS.MPS(MPS_.L,MPS_.chim,MPS_.d)
-        for i in range(self.MPS.L):
-            self.MPS.M[i] = MPS_.M[i].copy()
-            self.MPS.Svr[i] = MPS_.Svr[i].copy()
-        self.MPS.Svr[0] = np.array([1])
+        self.MPS.M = MPS_.M.copy()
+        self.MPS.Svr = MPS_.Svr.copy()
         self.L = self.MPS.L
         
     def set_UXXZ(self,h,delta,dt):
@@ -48,7 +46,7 @@ class TEBD():
             
             shpMi = Mi.shape
             shpMj = Mj.shape
-            theta = ncon([Mi,Mj,self.U2],[[-1,1,2],[2,3,-3],[1,3,-2,-4]])
+            theta = ncon([Mi,Mj,self.U2],[[-1,1,2],[2,3,-3],[-2,-4,1,3]])
             theta = theta.reshape(shpMi[0]*d,shpMj[2]*d)
             U,S,V = LA.svd(theta,full_matrices=False)
             if S.size > chi:
@@ -65,7 +63,7 @@ L = 64
 h = 0.
 delta = -1.1
 chi = 64
-
+h = 0.
 H = MPO.XXZMPO(L, delta, h)
 alg = dmrg1.DMRG1(H)
 
@@ -73,36 +71,27 @@ alg.initialize(chi)
 for n in range(10):
     alg.right_sweep()
     alg.left_sweep()
-            
-deltaf = 0.9
-T = 5
+print('en:',alg.MPO.contractMPOMPS(alg.MPS))            
+#%%
 dt = 0.01
-nsteps = int(T/dt)
-alg1 = TEBD(alg.MPS)
-alg1.set_UXXZ(h, delta, dt)
-
+delta = 0.
+h = 0.
 Mz = MPO.getMzMPO(L)
-Hf = MPO.XXZMPO(L, deltaf, h)
-mz = np.zeros(nsteps+1)
-en = np.zeros(nsteps+1)
-t  = np.zeros(nsteps+1)
+SMz = MPO.getStagMzMPO(L)
+mz  = []
+smz = []
+delta_space = np.linspace(-1.2,3,16)
 
-mz[0] = Mz.contractMPOMPS(alg1.MPS).real 
-en[0] = Hf.contractMPOMPS(alg1.MPS).real
-t[0]  = 0.
-Sent = np.zeros((L, nsteps+1))
+Hq   = MPO.XXZMPO(L, delta, h)
+alg1 = TEBD(alg.MPS)
+alg1.set_UXXZ(0., delta, dt)
 
-Svls = alg1.MPS.Svr[1:]
-Sent[:,0] = alg1.MPS.compute_EntEntropy()
-
-for n in range(nsteps):
-    alg1.evolve(64)
-    mz[n+1] = Mz.contractMPOMPS(alg1.MPS)
-    en[n+1] = Hf.contractMPOMPS(alg1.MPS)
-    t[n+1]  = (n+1)*dt
-    print('t',t[n+1],'Delta en',en[n+1]-en[0])
-    Svls = alg1.MPS.Svr[1:]  
-    Sent[:,n+1] = alg1.MPS.compute_EntEntropy()
+e0 = Hq.contractMPOMPS(alg.MPS)
+for n in range(100):
+    alg1.evolve(chi)
+    mz.append(Mz.contractMPOMPS(alg1.MPS))
+    smz.append(SMz.contractMPOMPS(alg1.MPS))
+    print('en',Hq.contractMPOMPS(alg1.MPS)-e0)
     
 #%% ent entropy plot
 import matplotlib

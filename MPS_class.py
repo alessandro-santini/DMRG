@@ -31,14 +31,15 @@ class MPS:
             self.M[i] = np.random.rand(chi,d,chi)   
     
     def right_normalize(self):
-        for i in range(self.L-1,0,-1):
+        for i in range(self.L-1,-1,-1):
             M = self.M[i]
             shpM = M.shape
             U, S, V = LA.svd(M.reshape(shpM[0], shpM[1]*shpM[2]), full_matrices=False)
             S /= LA.norm(S)
             self.M[i] = V.reshape(S.size, shpM[1], shpM[2])
-            self.M[i-1] = ncon([self.M[i-1],U*S],[[-1,-2,1],[1,-3]])
-            self.Svr[i+1] = S
+            if i != 0:
+                self.M[i-1] = ncon([self.M[i-1],U*S],[[-1,-2,1],[1,-3]])
+            self.Svr[i+1] = np.array(S)
             
     def right_normalize_and_truncate(self,chi):
         for i in range(self.L-1,0,-1):
