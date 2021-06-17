@@ -57,7 +57,7 @@ def IsingMPO(L,h):
         Ham.W[i] = H
     return Ham
 
-def XXZMPO(L,delta, h):
+def XXZMPO(L,delta, h, J=1):
     Ham = MPO(L,2)
     # Pauli Matrices
     Sp = np.array([[0,1],[0,0]])
@@ -72,8 +72,8 @@ def XXZMPO(L,delta, h):
     H[2,0,:,:] =       Sm
     H[3,0,:,:] =       Sz
     H[4,0,:,:] =    -h*Sz
-    H[4,1,:,:] =    .5*Sm
-    H[4,2,:,:] =    .5*Sp
+    H[4,1,:,:] =    .5*J*Sm
+    H[4,2,:,:] =    .5*J*Sp
     H[4,3,:,:] = delta*Sz
     H[4,4,:,:] =       Id
     
@@ -140,6 +140,28 @@ def getStagMzMPO(L):
         mz[1,1,:,:] = Id
         sMzMPO.W[i] = mz
     return sMzMPO
+
+def getLocalMzMPO(L, i):
+    LMz = MPO(L, 2)
+    sigma_z  = np.array([[1, 0], [0,-1]]);  Id  = np.array([[1, 0], [0, 1]])
+    mzl = np.zeros((1,2,2,2)); mzr = np.zeros((2,1,2,2))
+    mzr[0,0,:,:] = Id; 
+    mzr[1,0,:,:] = Id;
+    mzl[0,0,:,:] = Id; 
+    mzl[0,1,:,:] = Id    
+    
+    LMz.W[0] = mzl; 
+    LMz.W[L-1] = mzr
+    for j in range(1,L-1):
+        mz  = np.zeros((2,2,2,2));
+        mz[0,0,:,:] = Id; 
+        if j == i:
+            mz[1,0,:,:] = sigma_z
+        else:
+            mz[1,0,:,:] = Id
+        mz[1,1,:,:] = Id
+        LMz.W[j] = mz
+    return LMz
 
 def ComputeCorrFunction(MPS,i,j,Opi,Opj):   
     shpMi = MPS.M[i].shape

@@ -47,8 +47,8 @@ class MPS:
             shpM = M.shape
             U, S, V = LA.svd(M.reshape(shpM[0], shpM[1]*shpM[2]), full_matrices=False)
             if S.size>chi:
-                U = U[:,:chi]
-                V = V[:chi,:]
+                U = U[:, :chi]
+                V = V[:chi, :]
                 S = S[:chi]
             S /= LA.norm(S)
             self.M[i] = V.reshape(S.size, shpM[1], shpM[2])
@@ -83,18 +83,18 @@ class MPS:
     def check_normalization(self, which='R'):
         if which == 'R':
             for i in range(self.L):
-                X = [self.M[i][:,j,:]@self.M[i][:,j,:].T for j in range(self.d)]
+                X = [self.M[i][:,j,:]@self.M[i][:,j,:].T.conj() for j in range(self.d)]
                 print('site',i,np.allclose(sum(X),np.eye(self.M[i].shape[0]))) 
         if which == 'L':
             for i in range(self.L):
-                X = [self.M[i][:,j,:].T@self.M[i][:,j,:] for j in range(self.d)]
+                X = [self.M[i][:,j,:].T.conj()@self.M[i][:,j,:] for j in range(self.d)]
                 print('site',i,np.allclose(sum(X),np.eye(self.M[i].shape[2])))
     
     def compute_EntEntropy(self):
-        Sent = np.zeros(self.L)
+        Sent = np.zeros(self.L-1)
         Mlist = self.M.copy()
         
-        for i in range(0, self.L):
+        for i in range(0, self.L-1):
             M = Mlist[i]
             shpM = M.shape
             U, S, V = LA.svd(M.reshape(shpM[0]*shpM[1], shpM[2]), full_matrices=False)
@@ -104,3 +104,12 @@ class MPS:
                 Mlist[i+1] = ncon([np.diag(S)@V, Mlist[i+1]],[[-1,1],[1,-2,-3]])
             Sent[i] = (-S*np.log(S)).sum()
         return Sent
+    
+def getAllUp(L,chi):
+    res = MPS(L,chi,2)
+    for x in range(1,L-1):
+        res.M[x] = np.zeros((chi,2,chi))
+        res.M[x][0,0,0] = 1
+    res.M[0] = np.zeros((1,2,chi))
+    res.M[-1] = np.zeros((chi,2,1))
+    return res
