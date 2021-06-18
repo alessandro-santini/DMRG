@@ -9,15 +9,6 @@ from ncon import ncon
 from LanczosRoutines import optimize_lanczos
 
 ## tensor contraction for minimization
-##         +-   -+
-##         |  |  |
-## H_eff = L--H--R
-##         |  |  |
-##         +-- --+
-def build_Heff(L,H,R):
-    return ncon([L,H,R],[[-1,1,-4],[1,2,-2,-5],[-3,2,-6]])
-
-## tensor contraction for minimization
 ##         +--M--+
 ##         |  |  |
 ## H_eff = L--H--R
