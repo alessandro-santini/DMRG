@@ -67,3 +67,8 @@ def expm_krylov_lanczos(Afunc, v, dt, numiter):
     w_hess, u_hess = eigh_tridiagonal(alpha, beta)
 
     return np.dot(V, np.dot(u_hess, np.linalg.norm(v) * np.exp(dt*w_hess) * u_hess[0]))
+
+def optimize_lanczos(Afunc,v,numiter):
+    alpha, beta, V = lanczos_iteration(Afunc, v, numiter)
+    eig, w = eigh_tridiagonal(alpha, beta)
+    return V@w[:,0], eig[0]

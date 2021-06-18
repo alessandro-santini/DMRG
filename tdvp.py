@@ -4,7 +4,6 @@ import contraction_utilities as contract
 import numpy as np
 import numpy.linalg as LA
 from ncon import ncon
-from scipy.sparse.linalg import expm
 import matplotlib.pyplot as plt
 import dmrg1 
 from LanczosRoutines import expm_krylov_lanczos
@@ -98,7 +97,6 @@ class TDVP:
         self.right_sweep(delta)
         self.left_sweep(delta)
         
-#%%
 L = 64
 h = 0.
 delta = 1.5
@@ -115,22 +113,11 @@ for n in range(20):
 print('en:', alg.MPO.contractMPOMPS(alg.MPS).real)
 #%%
 sigma_z = np.array([[1,0],[0,-1]])
-deltaf = 1
-start = MPS.MPS(L,30,2)
+deltaf = -2
 
-Hf = MPO.XXZMPO(L, deltaf, h)
-
-start.M[0]  = np.zeros((1,2,chi))
-start.M[-1] = np.zeros((chi,2,1))
-for x in range(1,L-1):
-    start.M[x] = np.zeros((chi,2,chi))
-for x in range(0,L):
-    start.M[x][0,0,0] = 1
-start.M[L//2][0,0,0]  = 0
-start.M[L//2][0,1,0]  = 1
-start.right_normalize()
-
-alg1 = TDVP(start, Hf)
+# Hf = MPO.XXZMPO(L, deltaf, h)
+Hf = MPO.IsingMPO(L, 0.5)
+alg1 = TDVP(alg.MPS, Hf)
 alg1.initialize()
 dt = 0.1
 
@@ -146,7 +133,7 @@ mz0 = []
 t.append(0.)
 Sent.append(alg1.MPS.compute_EntEntropy())
 
-for n in range(1,201):
+for n in range(1,101):
     print(n)
     t.append((n)*dt)
     alg1.time_step(dt)

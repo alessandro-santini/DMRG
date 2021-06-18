@@ -5,8 +5,8 @@ import contraction_utilities as contract
 import numpy as np
 import numpy.linalg as LA
 from ncon import ncon
-from scipy.linalg import eigh_tridiagonal
 
+from LanczosRoutines import optimize_lanczos
 ## tensor contraction for minimization
 ##         +-   -+
 ##         |  |  |
@@ -26,28 +26,8 @@ def apply_Heff(L,H,R,M):
     return ncon([L,H,R,M.conj()],[[-1,2,1],[2,5,-2,3],[-3,5,4],[1,3,4]])
 
 def local_minimization(M,L,H,R,Lsteps=10):
-        psi = M.ravel()
-        
-        if LA.norm(psi) < 1e-16: psi = np.random.rand(psi.size)
-        psi /= LA.norm(psi)
-        
-        V = np.zeros([len(psi), Lsteps], dtype=np.float64)
-        alpha = np.zeros(Lsteps,dtype=np.float64)
-        beta  = np.zeros(Lsteps-1,dtype=np.float64)
-        V[:, 0]  = psi
-        V[:, 1]  = apply_Heff(L,H,R,M).ravel()
-        alpha[0] = np.vdot(V[:,1], V[:,0])
-        V[:, 1]  -= alpha[0]*V[:, 0]
-        for j in range(1,Lsteps-1):
-            beta[j-1] = LA.norm(V[:, j])
-            V[:, j]  /= max(beta[j-1],1e-16)
-            V[:, j+1] = apply_Heff(L,H,R,V[:,j].reshape(M.shape)).ravel()
-            alpha[j]  = np.vdot(V[:,j+1],V[:,j])
-            V[:,j+1] -= alpha[j]*V[:,j] + beta[j-1]*V[:,j-1]
-        eig, w = eigh_tridiagonal(alpha,beta)    
-        psi = V@w[:,0]
-        return psi, eig[0]
-
+    Afunc = lambda x: apply_Heff(L, H, R, x.reshape(M.shape)).ravel()
+    return optimize_lanczos(Afunc, M.ravel(), Lsteps)
 
 class DMRG2:
     def __init__(self, H):
